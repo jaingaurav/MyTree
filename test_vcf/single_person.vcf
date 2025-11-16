@@ -1,0 +1,7 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Alone;OnlyPerson;;;
+FN:OnlyPerson Alone
+BDAY:1985-07-20
+EMAIL;type=INTERNET;type=HOME:only.person@example.com
+END:VCARD

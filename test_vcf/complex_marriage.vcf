@@ -1,0 +1,55 @@
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;Root;;;
+FN:Root MultiMarriage
+BDAY:1970-05-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;FirstSpouse;;;
+FN:FirstSpouse MultiMarriage
+BDAY:1972-08-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;SecondSpouse;;;
+FN:SecondSpouse MultiMarriage
+BDAY:1975-11-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;ChildFromFirst1;;;
+FN:ChildFromFirst1 MultiMarriage
+BDAY:1995-02-14
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;ChildFromFirst2;;;
+FN:ChildFromFirst2 MultiMarriage
+BDAY:1997-06-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;ChildFromSecond1;;;
+FN:ChildFromSecond1 MultiMarriage
+BDAY:2005-03-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:MultiMarriage;ChildFromSecond2;;;
+FN:ChildFromSecond2 MultiMarriage
+BDAY:2008-09-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Step;StepChildFromSecond;;;
+FN:StepChildFromSecond Step
+BDAY:2003-12-25
+END:VCARD

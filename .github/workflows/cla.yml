@@ -1,0 +1,30 @@
+name: CLA Assistant
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CLA Assistant
+        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        uses: contributor-assistant/github-action@v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Personal Access Token with 'repo' scope for storing signatures
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        with:
+          path-to-signatures: 'signatures/cla.json'
+          path-to-document: 'https://raw.githubusercontent.com/jaingaurav/MyTree/refs/heads/main/CONTRIBUTING.md'
+          # Branch where CLA signatures will be stored
+          branch: 'main'
+          allowlist: 'dependabot[bot],renovate[bot],github-actions[bot]'
+          # Custom message shown to contributors
+          custom-pr-sign-comment: 'Thank you for contributing to MyTree! Please read and sign our [Contributor License Agreement]($pathToCLADocument) by commenting below with the following text:'
+          custom-allsigned-prcomment: 'All contributors have signed the CLA. Thank you! ✅'
+          lock-pullrequest-aftermerge: false
+

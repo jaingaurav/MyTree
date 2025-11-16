@@ -1,0 +1,68 @@
+# markdownlint-cli2 configuration
+# See https://github.com/DavidAnson/markdownlint-cli2
+
+# Glob patterns to ignore
+ignores:
+  - "build/**"
+  - ".build/**"
+  - "**/*.xcodeproj/**"
+  - "**/*.xcworkspace/**"
+  - "**/DerivedData/**"
+
+# Markdownlint rules configuration
+config:
+  default: true
+
+  # MD001: Heading levels should only increment by one level at a time
+  MD001: true
+
+  # MD003: Heading style (atx: # Heading)
+  MD003:
+    style: "atx"
+
+  # MD004: Unordered list style
+  MD004:
+    style: "dash"
+
+  # MD007: Unordered list indentation
+  MD007:
+    indent: 2
+
+  # MD013: Line length
+  MD013:
+    line_length: 120
+    code_blocks: false
+    tables: false
+
+  # MD024: Multiple headings with the same content
+  MD024:
+    siblings_only: true
+
+  # MD025: Multiple top-level headings in the same document
+  MD025: true
+
+  # MD026: Trailing punctuation in heading
+  MD026:
+    punctuation: ".,;:!"
+
+  # MD029: Ordered list item prefix
+  MD029:
+    style: "ordered"
+
+  # MD033: Inline HTML
+  MD033:
+    allowed_elements:
+      - "img"
+      - "br"
+      - "details"
+      - "summary"
+      - "kbd"
+
+  # MD034: Bare URL used (disable - we allow bare URLs)
+  MD034: false
+
+  # MD041: First line in file should be a top level heading (disable)
+  MD041: false
+
+  # MD051: Link fragments should be valid (disable - fragments are correct for GitHub markdown)
+  MD051: false
