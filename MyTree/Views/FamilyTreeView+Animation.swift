@@ -164,11 +164,12 @@ extension FamilyTreeView {
         // Don't reset state - preserve existing visible nodes
         // Only add new nodes incrementally
         viewModel.isAnimating = true
-        viewModel.totalDebugSteps = max(placementSteps.count - 1, 0)
+        // Process all filtered steps (they now only contain steps with new members)
+        viewModel.totalDebugSteps = placementSteps.count
         viewModel.currentDebugStep = 0
         viewModel.debugStepReady = false
 
-        // Ensure root is visible if not already
+        // Ensure root is visible if not already (for initial degree 0 load)
         if let root = initialNodes.first, !viewModel.visibleNodeIds.contains(root.member.id) {
             viewModel.visibleNodeIds.insert(root.member.id)
             if !viewModel.nodePositions.contains(where: { $0.member.id == root.member.id }) {
@@ -202,7 +203,8 @@ extension FamilyTreeView {
         var accumulatedDelay = delayPerStep
         var previousPositions = Set(viewModel.visibleNodeIds)
 
-        for index in steps.indices where index > 0 {
+        // Start from index 0 since filtered steps now only contain steps with new members
+        for index in steps.indices {
             let step = steps[index]
             let delay = accumulatedDelay
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
@@ -227,9 +229,10 @@ extension FamilyTreeView {
         newMemberIds: Set<String>,
         geometry: GeometryProxy
     ) {
+        // Start from index 0 since filtered steps now only contain steps with new members
         processDebugStepForNewMembers(
             placementSteps: steps,
-            currentIndex: 1,
+            currentIndex: 0,
             newMemberIds: newMemberIds,
             previousPositions: Set(viewModel.visibleNodeIds),
             geometry: geometry

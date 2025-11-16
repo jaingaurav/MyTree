@@ -4,40 +4,56 @@ This document describes the code coverage setup and requirements for MyTree.
 
 ## Overview
 
-Code coverage is automatically measured for all tests and checked in CI to
-prevent regressions. Coverage data is stored in **GitHub Actions artifacts** (not in git),
-providing historical coverage tracking without cluttering the repository.
+Code coverage is automatically measured for all tests and tracked using **[Codecov](https://codecov.io)**.
+Coverage data is uploaded to Codecov on every PR and push, providing beautiful visualizations,
+historical tracking, and automatic PR comments without cluttering the git repository.
 
-## Coverage Storage
+## Codecov Integration
 
-### GitHub Actions Artifacts (Primary Storage)
+### What is Codecov?
 
-Coverage data is stored outside the git repository:
+[Codecov](https://codecov.io) is an industry-standard coverage reporting service that provides:
 
-- **Storage Location**: GitHub Actions artifacts
-- **Retention**: 365 days for individual coverage snapshots, 90 days for aggregated reports
-- **Access**: Available via GitHub Actions UI or API
-- **Benefits**:
-  - ✅ Keeps repository clean (coverage reports not committed)
-  - ✅ Long-term historical data (1 year retention)
-  - ✅ Automatic storage with each CI run
-  - ✅ Easy access via GitHub UI
+- 📊 **Interactive dashboards** - Browse coverage by file with line-by-line visualization
+- 📈 **Historical trends** - Track coverage changes over time
+- 💬 **Automatic PR comments** - See coverage impact directly in PRs
+- 🎯 **Coverage badges** - Display coverage status in README
+- 🆓 **Free for open source** - No cost for public repositories
 
-### Coverage Comparison
+### How It Works
 
-Coverage comparison works by:
+On every PR/push:
 
-- **For Pull Requests**: Coverage is compared against the merge base with the base branch
-- **For Main Branch**: Coverage is compared against the previous commit
-- **Data Source**: Fetches coverage data from GitHub Actions artifacts (falls back to git history during migration)
-- **File-Level**: Also checks file-level coverage to prevent regressions in individual files
+1. Tests run with code coverage enabled
+2. Coverage data is extracted from Xcode test results
+3. Coverage is uploaded to Codecov automatically
+4. Codecov comments on PRs with coverage changes
+5. Coverage checks prevent merging if coverage decreases
 
-This approach ensures:
+### Coverage Requirements
 
-- ✅ No coverage files committed to git
-- ✅ Historical coverage data available via GitHub Actions
-- ✅ PRs compare against actual base branch coverage
-- ✅ File-level coverage regression detection
+Codecov enforces these requirements (configured in `codecov.yml`):
+
+- **Minimum coverage**: 50% overall
+- **Regression tolerance**: Coverage can't drop by more than 0.5%
+- **Patch coverage**: New code should have 80%+ coverage
+- **PR comments**: Codecov automatically comments on PRs showing coverage changes
+
+### Viewing Coverage
+
+**On Codecov Dashboard**: https://codecov.io/gh/jaingaurav/MyTree
+
+- Interactive file browser with line-by-line coverage
+- Coverage trends and graphs
+- Sunburst chart showing file coverage
+- Compare coverage across branches
+
+**In Pull Requests**: Codecov automatically comments with:
+
+- Overall coverage change
+- File-by-file coverage breakdown
+- Line-by-line diff showing which new code is covered
+- Links to detailed reports
 
 ## Running Tests with Coverage
 
@@ -47,26 +63,25 @@ This approach ensures:
 # Run tests with coverage
 make coverage
 
-# Check coverage against base branch
+# Check coverage meets minimum threshold
 make coverage-check
 
 # Display coverage report
 make coverage-report
-
-# Note: Coverage data is automatically stored in GitHub Actions artifacts
-# No need to commit coverage reports to git
 ```
+
+Coverage reports are stored locally in `coverage-reports/` (ignored by git).
+In CI, coverage is automatically uploaded to Codecov for comparison and tracking.
 
 ### CI/CD
 
 Code coverage is automatically:
 
-- Collected during the test job
-- **Compared against the base branch** (for PRs) or previous commit (for main)
-- **Stored in GitHub Actions artifacts** (365 day retention)
-- Reported in the GitHub Actions summary
-- Uploaded as artifacts for review
-- **Not committed to git** - keeps repository clean
+- Collected during test runs
+- Uploaded to Codecov
+- Compared against the base branch (for PRs)
+- Displayed in PR comments by Codecov
+- Tracked over time on the Codecov dashboard
 
 ## Coverage Requirements
 
@@ -74,13 +89,14 @@ Code coverage is automatically:
 
 - **Minimum coverage:** 50%
 - Tests will fail if coverage drops below this threshold
+- Enforced locally by `make coverage-check` and in CI by Codecov
 
 ### Regression Prevention
 
-- Coverage must not decrease by more than 0.5% from the base branch/previous commit
-- Any PR that decreases coverage will fail the coverage check
+- Coverage must not decrease by more than 0.5% from the base branch
+- Any PR that decreases coverage will be flagged by Codecov
 - If coverage decreases, add tests to restore it before merging
-- Coverage comparison is automatic - no manual baseline updates needed
+- Codecov automatically compares your PR against the base branch
 
 ### Improving Coverage
 
@@ -92,33 +108,35 @@ When you improve code coverage:
    make coverage
    ```
 
-2. Check the improvement (automatically compares against base branch):
+2. Check the coverage report locally:
 
    ```bash
-   make coverage-check
+   make coverage-report
    ```
 
-3. Coverage data is automatically stored:
-
-   Coverage data is automatically stored in GitHub Actions artifacts when tests run in CI.
-   No manual steps needed - the system will compare your PR against the base branch's
-   coverage automatically.
+3. Push your changes - Codecov will automatically:
+   - Upload and compare coverage
+   - Comment on your PR showing improvements
+   - Update coverage trends
 
 ## Coverage Reports
 
 ### Viewing Reports
 
-After running `make coverage`, reports are available locally in:
+**On Codecov** (recommended):
+
+- Visit https://codecov.io/gh/jaingaurav/MyTree
+- Browse files with interactive line-by-line coverage
+- View coverage trends over time
+- See coverage for specific commits or PRs
+
+**Locally** after running `make coverage`:
 
 - `coverage-reports/coverage-report.txt` - Human-readable report
-- `coverage-reports/coverage-*.json` - Machine-readable data (indexed by commit hash)
-- `build/TestResults.xcresult` - Xcode result bundle
+- `coverage-reports/coverage.json` - Machine-readable data
+- `build/UnitTestResults.xcresult` - Xcode result bundle
 
-**Note**: These files are in `.gitignore` and are not committed to git. In CI,
-coverage data is stored as GitHub Actions artifacts (retained for 365 days),
-providing historical coverage tracking without cluttering the repository.
-
-### Viewing in Xcode
+**In Xcode**:
 
 1. Run tests in Xcode (Cmd+U)
 2. Open the Report Navigator (Cmd+9)
@@ -179,119 +197,95 @@ Use `// swiftlint:disable:next function_body_length` or similar for justified ex
 
 ## Troubleshooting
 
-### Coverage Check Fails
+### Coverage Check Fails in CI
 
-If the coverage check fails:
+If Codecov reports coverage decreased:
 
-1. **View the report**:
+1. **View Codecov comment** on your PR to see which files lost coverage
+
+2. **Check coverage locally**:
 
    ```bash
    make coverage-report
    ```
 
-2. **Identify untested code**:
+3. **Identify untested code**:
    - Look at the coverage report
    - Focus on files with low coverage
    - Check which functions are untested
 
-3. **Add tests**:
+4. **Add tests**:
    - Write tests for uncovered code
-   - Run `make coverage-check` to verify improvement
+   - Run `make coverage-check` to verify it meets threshold
+   - Push changes and Codecov will update
 
-4. **Commit coverage reports** (if on main branch):
+### "Codecov token not found" Error
 
-   ```bash
-   make coverage-commit  # Commits coverage reports to git
-   ```
+If CI fails with Codecov token errors:
 
-   Note: GitHub Actions automatically commits coverage reports for PRs.
+1. Verify `CODECOV_TOKEN` is set in GitHub repository secrets
+2. Check the secret name matches exactly (case-sensitive)
+3. Contact a maintainer to re-generate the token from Codecov if needed
 
-### Missing Coverage History
+### Coverage Not Uploading
 
-If git-based comparison fails (no coverage history in git):
+If coverage doesn't appear on Codecov:
 
-**This should not happen** - GitHub Actions automatically commits coverage reports.
-
-If it does happen:
-
-1. **Check CI logs**: Verify coverage reports were committed
-2. **Manual commit**: Run tests and commit coverage reports:
-
-   ```bash
-   make coverage
-   make coverage-commit
-   ```
-
-3. **Verify**: Ensure coverage reports exist in git history:
-
-   ```bash
-   git log --all --oneline -- coverage-reports/  # --oneline is a git flag
-   ```
-
-Coverage comparison requires coverage reports to be committed to git - there is no fallback mechanism.
-
-### CI Coverage Check Fails
-
-If CI fails on coverage:
-
-1. Pull the latest baseline from main
-2. Run coverage locally
-3. Add tests to restore coverage
-4. Verify with `make coverage-check`
-5. Push changes
-
-## Scripts
-
-### check-coverage.sh
-
-Located at `scripts/check-coverage.sh`, this script:
-
-- Extracts coverage from .xcresult bundles
-- **Requires git-based comparison** (compares against base branch)
-- Fails with clear error if coverage data not found in git
-- Enforces minimum threshold
-- Generates reports
-
-### check-coverage-git.sh
-
-Located at `scripts/check-coverage-git.sh`, this script:
-
-- Performs git-based coverage comparison
-- Compares against merge base (for PRs) or previous commit (for main)
-- Retrieves coverage data from git history
-- Saves coverage data with commit hash for future comparisons
+1. Check the CI workflow logs for upload errors
+2. Verify test results exist: `./build/UnitTestResults.xcresult`
+3. Ensure `coverage.json` is generated in `coverage-reports/`
+4. Check that tests are actually running in CI
 
 ## Integration with CI
 
 The GitHub Actions workflow (`.github/workflows/ci.yml`) includes:
 
 1. **Test Job**:
-   - Fetches base branch for comparison (for PRs)
    - Runs tests with coverage enabled
-   - **Checks coverage against base branch** (git-based comparison)
-   - Generates coverage report
-   - Uploads results as artifacts
-   - Stores coverage data as GitHub Actions artifacts
+   - Generates coverage reports
 
-2. **Coverage Artifacts**:
-   - `test-results` - Full .xcresult bundle
-   - `coverage-reports` - Human-readable reports and JSON data
+2. **Coverage Check Job**:
+   - Extracts coverage from Xcode test results
+   - Checks minimum coverage threshold (50%)
+   - Uploads coverage to Codecov
+   - Codecov automatically compares against base branch
 
 3. **Status Checks**:
    - **Coverage check is a required status check** - PRs cannot be merged if it fails
-   - Coverage check runs as separate job (`coverage-check`) after tests pass
-   - Prevents accidental coverage regression
-   - Automatically compares against base branch state
+   - Codecov status check shows coverage change
    - Both `test` and `coverage-check` jobs must pass to merge
 
-**⚠️ Important**: The `coverage-check` job is a **required status check**. Pull requests cannot be merged if:
+**⚠️ Important**: Pull requests cannot be merged if:
 
 - Tests fail (`test` job)
-- Coverage check fails (`coverage-check` job)
-- Coverage decreases below threshold
-- Coverage regresses from base branch
+- Coverage is below 50% threshold
+- Coverage decreases by more than 0.5% (enforced by Codecov)
 
 See [Branch Protection Requirements](BRANCH_PROTECTION.md) for details on configuring required checks.
+
+## Configuration
+
+Coverage behavior is configured in `codecov.yml`:
+
+```yaml
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0.5%  # Allow 0.5% decrease
+
+    patch:
+      default:
+        target: 80%  # New code should have high coverage
+```
+
+This configuration:
+
+- Allows coverage to drop by at most 0.5%
+- Requires new code (patches) to have 80%+ coverage
+- Automatically comments on PRs with coverage changes
+- Ignores test files from coverage calculations
 
 ## Goals
 

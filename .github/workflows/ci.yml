@@ -178,27 +178,42 @@ jobs:
 
           echo "✅ Test results moved to build directory"
 
-      - name: Check code coverage
-        id: coverage_check
+      - name: Generate coverage report for Codecov
         run: |
-          set -e  # Exit on any error - this will fail the job if coverage decreases
-          chmod +x scripts/check-coverage.sh scripts/check-coverage-git.sh scripts/check-file-coverage.sh
-
-          # Verify unit test results exist (we check unit tests for comprehensive coverage)
+          # Verify unit test results exist
           if [ ! -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
             echo "❌ Unit test results not found"
-            echo "   Contents of ${{ env.BUILD_DIR }}:"
-            ls -la "${{ env.BUILD_DIR }}" 2>/dev/null || echo "   (directory not found)"
             exit 1
           fi
 
           echo "✅ Found unit test results at: ${{ env.BUILD_DIR }}/UnitTestResults.xcresult"
 
-          # Run coverage check on unit tests (comprehensive coverage)
-          # This checks both overall coverage and file-level coverage
-          ./scripts/check-coverage.sh "${{ env.BUILD_DIR }}/UnitTestResults.xcresult"
+          # Convert Xcode coverage to Codecov format
+          mkdir -p coverage-reports
+          xcrun xccov view --report --json "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" > coverage-reports/coverage.json
 
-          echo "✅ Code coverage check passed (overall + file-level)"
+          # Extract overall coverage for quick check
+          COVERAGE=$(python3 -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data.get(\"lineCoverage\", 0) * 100:.2f}')")
+          echo "Current coverage: ${COVERAGE}%"
+
+          # Check minimum threshold
+          if (( $(echo "$COVERAGE < 50.0" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below minimum threshold of 50.0%"
+            exit 1
+          fi
+
+          echo "✅ Coverage meets minimum threshold"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage-reports/coverage.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate coverage report
         if: always()
@@ -224,19 +239,6 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Store coverage data
-        if: always()
-        run: |
-          chmod +x scripts/store-coverage-github.sh
-
-          if [ -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
-            ./scripts/store-coverage-github.sh "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ${{ github.sha }}
-            echo "✅ Coverage data stored for commit: ${{ github.sha }}"
-          else
-            echo "⚠️  Unit test results not found - skipping coverage data storage"
-            echo "   This is non-fatal - coverage check will still run"
-          fi
-
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -245,28 +247,20 @@ jobs:
           path: coverage-reports/
           retention-days: 90  # Keep coverage data for 90 days
 
-      - name: Upload coverage data (long-term)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-data-${{ github.sha }}
-          path: coverage-reports/coverage-*.json
-          retention-days: 365  # Keep individual coverage snapshots for 1 year
-
       - name: Store coverage in GitHub summary
         if: always()
         run: |
           # Store coverage data in GitHub Actions summary for easy viewing
-          COVERAGE_FILE=$(ls coverage-reports/coverage-*.json 2>/dev/null | head -1)
-          if [ -n "$COVERAGE_FILE" ] && [ -f "$COVERAGE_FILE" ]; then
-            COVERAGE=$(python3 -c "import json; print(f\"{json.load(open('$COVERAGE_FILE'))['coverage']:.2f}%\")" 2>/dev/null || echo "N/A")
+          COVERAGE_FILE="coverage-reports/coverage.json"
+          if [ -f "$COVERAGE_FILE" ]; then
+            COVERAGE=$(python3 -c "import json; data=json.load(open('$COVERAGE_FILE')); print(f\"{data.get('lineCoverage', 0) * 100:.2f}%\")" 2>/dev/null || echo "N/A")
             echo "## Coverage Data" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- **Coverage**: \`$COVERAGE\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Artifact**: \`coverage-data-${{ github.sha }}\` (retained for 365 days)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Codecov**: Coverage data uploaded to Codecov" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Coverage data is stored as GitHub Actions artifacts, not committed to git." >> $GITHUB_STEP_SUMMARY
+            echo "View detailed coverage reports at [Codecov](https://codecov.io/gh/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
           fi
 
   build-macos:

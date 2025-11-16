@@ -224,24 +224,19 @@ extension FamilyTreeView {
         newMemberIds: Set<String>,
         previousVisibleIds: Set<String>
     ) -> [[NodePosition]] {
-        guard let firstStep = allSteps.first else { return [] }
+        guard !allSteps.isEmpty else { return [] }
 
-        var filteredSteps: [[NodePosition]] = [firstStep] // Always include root step
-        var accumulatedVisibleIds = Set(firstStep.map { $0.member.id })
+        var filteredSteps: [[NodePosition]] = []
+        // Start with previously visible IDs to correctly identify which steps are truly new
+        var accumulatedVisibleIds = previousVisibleIds
 
-        for step in allSteps.dropFirst() {
+        for step in allSteps {
             let stepIds = Set(step.map { $0.member.id })
             let newInStep = stepIds.subtracting(accumulatedVisibleIds)
 
-            // Only include steps that add NEW members (not already visible)
-            if !newInStep.isEmpty && newInStep.isSubset(of: newMemberIds) {
-                // Include all nodes in this step (for correct positioning)
-                // but mark only new ones for animation
-                filteredSteps.append(step)
-                accumulatedVisibleIds.formUnion(stepIds)
-            } else if !newInStep.isEmpty {
-                // Step adds members that were already visible - skip animation but update positions
-                // This handles repositioning of existing nodes
+            // Only include steps that add at least one NEW member from newMemberIds
+            if !newInStep.isEmpty && !newInStep.isDisjoint(with: newMemberIds) {
+                // This step adds genuinely new members - include it
                 filteredSteps.append(step)
                 accumulatedVisibleIds.formUnion(stepIds)
             }
