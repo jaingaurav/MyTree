@@ -1,0 +1,607 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  PROJECT: MyTree.xcodeproj
+  SCHEME: MyTree
+  BUILD_DIR: ./build
+
+jobs:
+  lint:
+    name: Pre-commit Checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm linting tools
+        run: |
+          npm install -g markdownlint-cli2
+          npm install -g cspell
+          npm install -g markdown-link-check
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run all linting checks
+        run: make lint
+
+  test:
+    name: Run Tests
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Fetch branches for coverage comparison
+        if: github.event_name == 'pull_request'
+        run: |
+          # Fetch base branch for comparison
+          git fetch origin ${{ github.base_ref }}:origin/${{ github.base_ref }} || true
+          # Fetch PR branch so we can push to it later
+          git fetch origin ${{ github.head_ref }}:${{ github.head_ref }} || true
+
+      - name: Run tests with code coverage
+        id: run_tests
+        run: |
+          set -e  # Exit on any error
+
+          echo "Running integration tests..."
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -only-testing:MyTreeIntegrationTests \
+            -destination 'platform=macOS' \
+            -derivedDataPath ${{ env.BUILD_DIR }} \
+            -enableCodeCoverage YES \
+            -resultBundlePath ${{ env.BUILD_DIR }}/IntegrationTestResults.xcresult \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+          echo ""
+          echo "Running unit tests..."
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme MyTreeUnitTests \
+            -destination 'platform=macOS' \
+            -derivedDataPath ${{ env.BUILD_DIR }} \
+            -enableCodeCoverage YES \
+            -resultBundlePath ${{ env.BUILD_DIR }}/UnitTestResults.xcresult \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+          # Verify test results exist
+          if [ ! -d "${{ env.BUILD_DIR }}/IntegrationTestResults.xcresult" ] || [ ! -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
+            echo "❌ Test results not found - tests may have failed"
+            exit 1
+          fi
+
+          echo "✅ All tests passed successfully"
+
+      - name: Upload test results
+        if: always()
+        run: |
+          # Copy both test results to artifact directory
+          mkdir -p test-artifact
+          cp -R ${{ env.BUILD_DIR }}/IntegrationTestResults.xcresult test-artifact/ || true
+          cp -R ${{ env.BUILD_DIR }}/UnitTestResults.xcresult test-artifact/ || true
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: test-artifact/IntegrationTestResults.xcresult
+          retention-days: 7
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: test-artifact/UnitTestResults.xcresult
+          retention-days: 7
+
+  coverage-check:
+    name: Check Code Coverage
+    runs-on: macos-latest
+    needs: [test]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Fetch branches for coverage comparison
+        if: github.event_name == 'pull_request'
+        run: |
+          # Fetch base branch for comparison
+          git fetch origin ${{ github.base_ref }}:origin/${{ github.base_ref }} || true
+
+      - name: Download integration test results
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-test-results
+          path: integration-artifact-download
+
+      - name: Download unit test results
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: unit-artifact-download
+
+      - name: Move test results to build directory
+        run: |
+          # The artifact extracts the .xcresult bundle contents directly
+          mkdir -p ${{ env.BUILD_DIR }}
+
+          # Move integration test results
+          if [ -f "integration-artifact-download/Info.plist" ] && [ -d "integration-artifact-download/Data" ]; then
+            echo "Found integration test results"
+            mv integration-artifact-download ${{ env.BUILD_DIR }}/IntegrationTestResults.xcresult
+          fi
+
+          # Move unit test results
+          if [ -f "unit-artifact-download/Info.plist" ] && [ -d "unit-artifact-download/Data" ]; then
+            echo "Found unit test results"
+            mv unit-artifact-download ${{ env.BUILD_DIR }}/UnitTestResults.xcresult
+          fi
+
+          echo "✅ Test results moved to build directory"
+
+      - name: Check code coverage
+        id: coverage_check
+        run: |
+          set -e  # Exit on any error - this will fail the job if coverage decreases
+          chmod +x scripts/check-coverage.sh scripts/check-coverage-git.sh scripts/check-file-coverage.sh
+
+          # Verify unit test results exist (we check unit tests for comprehensive coverage)
+          if [ ! -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
+            echo "❌ Unit test results not found"
+            echo "   Contents of ${{ env.BUILD_DIR }}:"
+            ls -la "${{ env.BUILD_DIR }}" 2>/dev/null || echo "   (directory not found)"
+            exit 1
+          fi
+
+          echo "✅ Found unit test results at: ${{ env.BUILD_DIR }}/UnitTestResults.xcresult"
+
+          # Run coverage check on unit tests (comprehensive coverage)
+          # This checks both overall coverage and file-level coverage
+          ./scripts/check-coverage.sh "${{ env.BUILD_DIR }}/UnitTestResults.xcresult"
+
+          echo "✅ Code coverage check passed (overall + file-level)"
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          mkdir -p coverage-reports
+
+          if [ -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
+            # Generate overall coverage report
+            xcrun xccov view --report "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" > coverage-reports/coverage-report.txt
+
+            # Generate file-level coverage summary
+            echo "## Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Overall Coverage" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -20 coverage-reports/coverage-report.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### File-Level Coverage" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            # Show file-level breakdown
+            xcrun xccov view --report "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" | grep -E "^.*\.swift" | head -30 >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Store coverage data
+        if: always()
+        run: |
+          chmod +x scripts/store-coverage-github.sh
+
+          if [ -d "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ]; then
+            ./scripts/store-coverage-github.sh "${{ env.BUILD_DIR }}/UnitTestResults.xcresult" ${{ github.sha }}
+            echo "✅ Coverage data stored for commit: ${{ github.sha }}"
+          else
+            echo "⚠️  Unit test results not found - skipping coverage data storage"
+            echo "   This is non-fatal - coverage check will still run"
+          fi
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage-reports/
+          retention-days: 90  # Keep coverage data for 90 days
+
+      - name: Upload coverage data (long-term)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ github.sha }}
+          path: coverage-reports/coverage-*.json
+          retention-days: 365  # Keep individual coverage snapshots for 1 year
+
+      - name: Store coverage in GitHub summary
+        if: always()
+        run: |
+          # Store coverage data in GitHub Actions summary for easy viewing
+          COVERAGE_FILE=$(ls coverage-reports/coverage-*.json 2>/dev/null | head -1)
+          if [ -n "$COVERAGE_FILE" ] && [ -f "$COVERAGE_FILE" ]; then
+            COVERAGE=$(python3 -c "import json; print(f\"{json.load(open('$COVERAGE_FILE'))['coverage']:.2f}%\")" 2>/dev/null || echo "N/A")
+            echo "## Coverage Data" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Coverage**: \`$COVERAGE\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Artifact**: \`coverage-data-${{ github.sha }}\` (retained for 365 days)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Coverage data is stored as GitHub Actions artifacts, not committed to git." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  build-macos:
+    name: Build macOS (Release)
+    runs-on: macos-latest
+    needs: [lint, test, coverage-check]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build macOS app
+        run: |
+          xcodebuild \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -derivedDataPath ${{ env.BUILD_DIR }} \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Verify build artifacts
+        run: |
+          if [ -f "${{ env.BUILD_DIR }}/Build/Products/Release/MyTree.app/Contents/MacOS/MyTree" ]; then
+            echo "✅ macOS build successful"
+            ls -lh "${{ env.BUILD_DIR }}/Build/Products/Release/MyTree.app/Contents/MacOS/MyTree"
+          else
+            echo "❌ macOS build failed - binary not found"
+            exit 1
+          fi
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyTree-macOS-Release
+          path: build/Build/Products/Release/MyTree.app
+          retention-days: 7
+
+  build-ios:
+    name: Build iOS (Release)
+    runs-on: macos-latest
+    needs: [lint, test, coverage-check]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build iOS app
+        run: |
+          xcodebuild \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ${{ env.BUILD_DIR }} \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Verify iOS build
+        run: |
+          echo "✅ iOS build completed"
+          ls -lh ${{ env.BUILD_DIR }}/Build/Products/Release-iphoneos/ || true
+
+      - name: Upload iOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyTree-iOS-Release
+          path: build/Build/Products/Release-iphoneos/
+          retention-days: 7
+
+  build-cli:
+    name: Build CLI Tool (Release)
+    runs-on: macos-latest
+    needs: [lint, test, coverage-check]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build macOS app (for CLI extraction)
+        run: |
+          xcodebuild \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -derivedDataPath ${{ env.BUILD_DIR }} \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Create CLI tool
+        run: |
+          mkdir -p ${{ env.BUILD_DIR }}/cli
+          cp "${{ env.BUILD_DIR }}/Build/Products/Release/MyTree.app/Contents/MacOS/MyTree" \
+             "${{ env.BUILD_DIR }}/cli/mytree"
+          chmod +x "${{ env.BUILD_DIR }}/cli/mytree"
+
+          # Remove existing signature and re-sign without entitlements
+          codesign --remove-signature "${{ env.BUILD_DIR }}/cli/mytree" 2>/dev/null || true
+          codesign --force --sign - "${{ env.BUILD_DIR }}/cli/mytree" 2>/dev/null || true
+
+          echo "✅ CLI tool created"
+          ls -lh "${{ env.BUILD_DIR }}/cli/mytree"
+          file "${{ env.BUILD_DIR }}/cli/mytree"
+
+      - name: Test CLI tool
+        run: |
+          echo "Testing CLI tool with --help (auto-detects headless mode)..."
+          "${{ env.BUILD_DIR }}/cli/mytree" --help
+          echo "✅ CLI help test passed"
+
+          echo ""
+          echo "Testing backwards compatibility with --headless flag..."
+          "${{ env.BUILD_DIR }}/cli/mytree" --headless --help
+          echo "✅ Backwards compatibility test passed"
+
+      - name: Upload CLI tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: mytree-cli-Release
+          path: build/cli/mytree
+          retention-days: 7
+
+  create-dmg:
+    name: Create DMG (Release)
+    runs-on: macos-latest
+    needs: [build-macos]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download macOS app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MyTree-macOS-Release
+          path: build/MyTree.app
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Get version info
+        id: version
+        run: |
+          # Extract version from Info.plist or use commit SHA
+          VERSION="${GITHUB_REF_NAME}"
+          if [ "$VERSION" = "main" ] || [ "$VERSION" = "develop" ]; then
+            VERSION="$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create DMG
+        run: |
+          mkdir -p dist
+
+          # Set correct app path (artifact is downloaded to build/MyTree.app)
+          APP_PATH="build/MyTree.app"
+
+          # Verify app exists
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ App not found at $APP_PATH"
+            echo "Contents of build directory:"
+            ls -la build/ || true
+            exit 1
+          fi
+
+          echo "✓ App found at $APP_PATH"
+
+          # Create DMG with create-dmg (skip icon if not found)
+          if [ -f "$APP_PATH/Contents/Resources/AppIcon.icns" ]; then
+            ICON_ARG="--volicon $APP_PATH/Contents/Resources/AppIcon.icns"
+          else
+            echo "⚠️  AppIcon.icns not found, creating DMG without custom icon"
+            ICON_ARG=""
+          fi
+
+          create-dmg \
+            --volname "MyTree" \
+            $ICON_ARG \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "MyTree.app" 200 190 \
+            --hide-extension "MyTree.app" \
+            --app-drop-link 600 185 \
+            --no-internet-enable \
+            "dist/MyTree-${{ steps.version.outputs.version }}.dmg" \
+            "$APP_PATH" \
+            || true
+
+          # Fallback: If create-dmg fails, use hdiutil directly
+          if [ ! -f "dist/MyTree-${{ steps.version.outputs.version }}.dmg" ]; then
+            echo "create-dmg failed, using hdiutil fallback..."
+            hdiutil create -volname "MyTree" \
+              -srcfolder "$APP_PATH" \
+              -ov -format UDZO \
+              "dist/MyTree-${{ steps.version.outputs.version }}.dmg"
+          fi
+
+          # Verify DMG was created
+          if [ -f "dist/MyTree-${{ steps.version.outputs.version }}.dmg" ]; then
+            echo "✅ DMG created successfully"
+            ls -lh "dist/MyTree-${{ steps.version.outputs.version }}.dmg"
+
+            # Show DMG info
+            hdiutil imageinfo "dist/MyTree-${{ steps.version.outputs.version }}.dmg" | head -20
+          else
+            echo "❌ Failed to create DMG"
+            exit 1
+          fi
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyTree-macOS-DMG
+          path: dist/*.dmg
+          retention-days: 30
+
+  build-summary:
+    name: Build Summary
+    runs-on: macos-latest
+    needs: [build-macos, build-ios, build-cli, create-dmg]
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS Release | ${{ needs.build-macos.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS Release | ${{ needs.build-ios.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CLI Tool | ${{ needs.build-cli.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DMG Package | ${{ needs.create-dmg.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.build-macos.result }}" = "success" ] && \
+             [ "${{ needs.build-ios.result }}" = "success" ] && \
+             [ "${{ needs.build-cli.result }}" = "success" ] && \
+             [ "${{ needs.create-dmg.result }}" = "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 All builds completed successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📦 Artifacts Available" >> $GITHUB_STEP_SUMMARY
+            echo "- **MyTree-macOS-DMG** - Drag-and-drop installer (recommended for end users)" >> $GITHUB_STEP_SUMMARY
+            echo "- **MyTree-macOS-Release** - Raw .app bundle" >> $GITHUB_STEP_SUMMARY
+            echo "- **MyTree-iOS-Release** - iOS build" >> $GITHUB_STEP_SUMMARY
+            echo "- **mytree-cli-Release** - Command-line tool" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Some builds failed. Please check the logs above." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  release:
+    name: Create GitHub Release
+    runs-on: macos-latest
+    needs: [build-macos, create-dmg, build-cli]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: MyTree-macOS-DMG
+          path: dist
+
+      - name: Download CLI tool
+        uses: actions/download-artifact@v4
+        with:
+          name: mytree-cli-Release
+          path: cli
+
+      - name: Prepare release assets
+        run: |
+          # Rename CLI for release
+          mv cli/mytree cli/mytree-macos-${{ github.ref_name }}
+          chmod +x cli/mytree-macos-${{ github.ref_name }}
+
+          # List files to be released
+          echo "Release assets:"
+          ls -lh dist/
+          ls -lh cli/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+          files: |
+            dist/*.dmg
+            cli/mytree-macos-*
+          body: |
+            ## 📦 Installation
+
+            ### macOS App (Recommended)
+            1. Download `MyTree-*.dmg`
+            2. Open the DMG file
+            3. Drag MyTree.app to your Applications folder
+            4. Open MyTree from Applications
+
+            ### CLI Tool
+            1. Download `mytree-macos-*`
+            2. Make it executable: `chmod +x mytree-macos-*`
+            3. Move to PATH: `sudo mv mytree-macos-* /usr/local/bin/mytree`
+            4. Run: `mytree --headless --vcf contacts.vcf --output tree.png`
+
+            ## ⚠️ Security Note
+            On first launch, macOS may show a security warning because the app is not notarized. To open:
+            1. Right-click the app and select "Open"
+            2. Click "Open" in the security dialog
+
+            ---
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.ref_name }}

@@ -1,0 +1,111 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Core;Root;;;
+FN:Root Core
+BDAY:1975-04-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Core;Spouse;;;
+FN:Spouse Core
+BDAY:1977-07-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;PaternalFather;;;
+FN:PaternalFather Parent
+BDAY:1945-01-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;PaternalMother;;;
+FN:PaternalMother Parent
+BDAY:1947-03-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;MaternalFather;;;
+FN:MaternalFather Parent
+BDAY:1948-05-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;MaternalMother;;;
+FN:MaternalMother Parent
+BDAY:1950-08-25
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Core;Child1;;;
+FN:Child1 Core
+BDAY:2000-01-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Core;Child2;;;
+FN:Child2 Core
+BDAY:2003-05-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Uncle;PaternalUncle;;;
+FN:PaternalUncle Uncle
+BDAY:1970-02-14
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Uncle;PaternalUncleSpouse;;;
+FN:PaternalUncleSpouse Uncle
+BDAY:1972-06-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Aunt;MaternalAunt;;;
+FN:MaternalAunt Aunt
+BDAY:1973-09-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Aunt;MaternalAuntSpouse;;;
+FN:MaternalAuntSpouse Aunt
+BDAY:1971-12-05
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Cousin;PaternalCousin1;;;
+FN:PaternalCousin1 Cousin
+BDAY:1995-03-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Cousin;PaternalCousin2;;;
+FN:PaternalCousin2 Cousin
+BDAY:1998-07-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Cousin;MaternalCousin1;;;
+FN:MaternalCousin1 Cousin
+BDAY:1996-04-25
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Cousin;MaternalCousin2;;;
+FN:MaternalCousin2 Cousin
+BDAY:1999-11-30
+END:VCARD

@@ -1,0 +1,280 @@
+# Fastfile for MyTree
+# This file contains the fastlane.tools configuration
+# More information about fastlane can be found on https://fastlane.tools
+
+default_platform(:mac)
+
+# Project configuration
+PROJECT = "MyTree.xcodeproj"
+SCHEME = "MyTree"
+BUILD_DIR = "./build"
+
+platform :mac do
+  desc "Run all linting checks (SwiftLint + Markdown + Spelling)"
+  lane :lint do
+    UI.header "Running Linting Checks"
+
+    # SwiftLint
+    UI.message "Running SwiftLint..."
+    swiftlint(
+      mode: :lint,
+      strict: true,
+      raise_if_swiftlint_error: true,
+      config_file: ".swiftlint.yml"
+    )
+
+    # Markdown and documentation linting via make
+    UI.message "Running documentation linting..."
+    sh("cd .. && make lint-docs")
+
+    UI.success "All linting checks passed! ✅"
+  end
+
+  desc "Run all tests"
+  lane :test do
+    UI.header "Running Tests"
+
+    run_tests(
+      project: PROJECT,
+      scheme: SCHEME,
+      destination: "platform=macOS",
+      derived_data_path: BUILD_DIR,
+      code_coverage: true,
+      result_bundle: true,
+      output_directory: "#{BUILD_DIR}/fastlane-test-results",
+      code_signing_identity: "",
+      skip_build: false,
+      buildlog_path: "#{BUILD_DIR}/logs",
+      xcargs: "CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
+    )
+
+    UI.success "All tests passed! ✅"
+  end
+
+  desc "Build macOS app (Release)"
+  lane :build_macos do
+    UI.header "Building macOS App (Release)"
+
+    gym(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      derived_data_path: BUILD_DIR,
+      output_directory: "#{BUILD_DIR}/Release",
+      output_name: "MyTree.app",
+      export_method: "development",
+      skip_package_ipa: true,
+      skip_archive: true,
+      skip_codesigning: true,
+      xcargs: "CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
+    )
+
+    UI.success "macOS app built successfully! ✅"
+    UI.message "Location: #{BUILD_DIR}/Build/Products/Release/MyTree.app"
+  end
+
+  desc "Build macOS app (Debug)"
+  lane :build_macos_debug do
+    UI.header "Building macOS App (Debug)"
+
+    gym(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Debug",
+      derived_data_path: BUILD_DIR,
+      output_directory: "#{BUILD_DIR}/Debug",
+      skip_package_ipa: true,
+      skip_archive: true,
+      skip_codesigning: true,
+      xcargs: "CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
+    )
+
+    UI.success "macOS debug app built successfully! ✅"
+  end
+
+  desc "Build iOS app (Release)"
+  lane :build_ios do
+    UI.header "Building iOS App (Release)"
+
+    gym(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      sdk: "iphoneos",
+      derived_data_path: BUILD_DIR,
+      output_directory: "#{BUILD_DIR}/iOS",
+      skip_package_ipa: true,
+      skip_archive: true,
+      xcargs: "CODE_SIGNING_ALLOWED=NO"
+    )
+
+    UI.success "iOS app built successfully! ✅"
+  end
+
+  desc "Build CLI tool"
+  lane :build_cli do
+    UI.header "Building CLI Tool"
+
+    # Build macOS app first
+    build_macos
+
+    # Extract and prepare CLI binary
+    sh("cd .. && mkdir -p #{BUILD_DIR}/cli")
+    sh("cd .. && cp \"#{BUILD_DIR}/Build/Products/Release/MyTree.app/Contents/MacOS/MyTree\" \"#{BUILD_DIR}/cli/mytree\"")
+    sh("cd .. && chmod +x \"#{BUILD_DIR}/cli/mytree\"")
+
+    # Remove signature and re-sign without entitlements
+    sh("cd .. && codesign --remove-signature \"#{BUILD_DIR}/cli/mytree\" 2>/dev/null || true")
+    sh("cd .. && codesign --force --sign - \"#{BUILD_DIR}/cli/mytree\" 2>/dev/null || true")
+
+    UI.success "CLI tool built successfully! ✅"
+    UI.message "Location: #{BUILD_DIR}/cli/mytree"
+  end
+
+  desc "Create DMG installer"
+  lane :build_dmg do |options|
+    UI.header "Creating DMG Installer"
+
+    # Ensure macOS app is built
+    unless File.exist?("../#{BUILD_DIR}/Build/Products/Release/MyTree.app")
+      build_macos
+    end
+
+    version = options[:version] || `git rev-parse --short HEAD`.strip
+    dmg_path = "../dist/MyTree-#{version}.dmg"
+
+    sh("cd .. && mkdir -p dist")
+
+    app_path = "#{BUILD_DIR}/Build/Products/Release/MyTree.app"
+    icon_path = "#{app_path}/Contents/Resources/AppIcon.icns"
+
+    # Check if icon exists
+    icon_arg = File.exist?("../#{icon_path}") ? "--volicon \"#{icon_path}\"" : ""
+    if icon_arg.empty?
+      UI.message "⚠️  AppIcon.icns not found, creating DMG without custom icon"
+    end
+
+    # Try create-dmg first
+    begin
+      UI.message "Attempting to create DMG with create-dmg..."
+      sh(%Q{
+        cd .. && create-dmg \
+          --volname "MyTree" \
+          #{icon_arg} \
+          --window-pos 200 120 \
+          --window-size 800 400 \
+          --icon-size 100 \
+          --icon "MyTree.app" 200 190 \
+          --hide-extension "MyTree.app" \
+          --app-drop-link 600 185 \
+          --no-internet-enable \
+          "#{dmg_path}" \
+          "#{app_path}" || true
+      })
+    rescue
+      UI.message "create-dmg not available or failed, using hdiutil..."
+    end
+
+    # Fallback to hdiutil if create-dmg failed
+    unless File.exist?(dmg_path)
+      UI.message "Using hdiutil to create DMG..."
+      sh(%Q{
+        cd .. && hdiutil create -volname "MyTree" \
+          -srcfolder "#{app_path}" \
+          -ov -format UDZO \
+          "#{dmg_path}"
+      })
+    end
+
+    if File.exist?(dmg_path)
+      UI.success "DMG created successfully! ✅"
+      UI.message "Location: #{dmg_path}"
+      UI.message "Size: #{File.size(dmg_path) / 1024 / 1024} MB"
+    else
+      UI.user_error! "Failed to create DMG"
+    end
+
+    dmg_path
+  end
+
+  desc "Run full CI pipeline (lint + test + build)"
+  lane :ci do
+    UI.header "Running Full CI Pipeline"
+
+    lint
+    test
+    build_macos
+    build_ios
+    build_cli
+
+    UI.success "CI pipeline completed successfully! 🎉"
+  end
+
+  desc "Build all release artifacts (macOS, iOS, CLI, DMG)"
+  lane :build_all do |options|
+    UI.header "Building All Release Artifacts"
+
+    version = options[:version] || `git rev-parse --short HEAD`.strip
+
+    build_macos
+    build_ios
+    build_cli
+    build_dmg(version: version)
+
+    UI.success "All release artifacts built successfully! 🎉"
+    UI.message ""
+    UI.message "📦 Artifacts:"
+    UI.message "  - macOS app: #{BUILD_DIR}/Build/Products/Release/MyTree.app"
+    UI.message "  - iOS app: #{BUILD_DIR}/Build/Products/Release-iphoneos/"
+    UI.message "  - CLI tool: #{BUILD_DIR}/cli/mytree"
+    UI.message "  - DMG installer: dist/MyTree-#{version}.dmg"
+  end
+
+  desc "Prepare release (version bump, tag, build artifacts)"
+  lane :prepare_release do |options|
+    UI.header "Preparing Release"
+
+    # Validate version
+    version = options[:version]
+    UI.user_error!("Version is required. Use: fastlane prepare_release version:1.0.0") unless version
+
+    # Ensure clean working directory
+    ensure_git_status_clean
+
+    # Run tests before release
+    lint
+    test
+
+    # Build all artifacts
+    build_all(version: version)
+
+    # Create git tag
+    add_git_tag(
+      tag: "v#{version}",
+      message: "Release version #{version}"
+    )
+
+    UI.success "Release v#{version} prepared! 🎉"
+    UI.message ""
+    UI.message "Next steps:"
+    UI.message "  1. Review the artifacts in dist/ and build/"
+    UI.message "  2. Push the tag: git push origin v#{version}"
+    UI.message "  3. GitHub Actions will automatically create the release"
+  end
+
+  desc "Clean build artifacts"
+  lane :clean do
+    UI.header "Cleaning Build Artifacts"
+
+    sh("cd .. && rm -rf #{BUILD_DIR}")
+    sh("cd .. && rm -rf dist")
+    sh("cd .. && rm -rf ~/Library/Developer/Xcode/DerivedData/MyTree-*")
+
+    UI.success "Build artifacts cleaned! ✅"
+  end
+end
+
+# Error handling
+error do |lane, exception|
+  UI.error "Error in lane #{lane}: #{exception.message}"
+end

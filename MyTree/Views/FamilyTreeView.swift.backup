@@ -1,0 +1,242 @@
+import SwiftUI
+
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
+
+struct FamilyTreeView: View {
+    let treeData: FamilyTreeData
+    let myContact: FamilyMember?
+
+    @State var nodePositions: [NodePosition] = []
+    @State var visibleNodeIds: Set<String> = []  // Track which nodes should be visible (for animation)
+    @State var selectedMember: FamilyMember?
+    @State var selectedNodePosition: CGPoint?
+    @State var showingDetail = false
+    @State var highlightedPath: Set<String> = []
+    @State var highlightedPathOrdered: [String] = []  // Ordered path for segment calculation
+    @State var offset: CGSize = .zero
+    @State var scale: CGFloat = 1.0
+    @State var lastScale: CGFloat = 1.0
+    @State var isAnimating = false  // Track if animation is in progress
+
+    // Path animation state
+    @State var pathAnimations: [String: Double] = [:]  // Path ID -> animation progress (0.0 to 1.0)
+    @State var previousNodeIds: Set<String> = []  // Track previous visible nodes to detect new paths
+
+    // Degree of separation control
+    @State var degreeOfSeparation: Int = 0  // Start with 0 (only showing "me")
+    @State var filteredMembers: [FamilyMember] = []
+
+    // Animation speed control (milliseconds between each card animation)
+    @State var animationSpeedMs: Double = 1000.0
+
+    // Debug mode controls
+    @State var debugMode: Bool = false
+    @State var debugStepReady: Bool = false
+    @State var currentDebugStep: Int = 0
+    @State var totalDebugSteps: Int = 0
+    @State var debugStepDescription: String = ""
+    @State var debugChangesSummary: [String] = []
+    @State var keyboardMonitor: Any?
+    @State var lastLoggedNodeCount: Int = 0
+    @State var lastCanvasRedrawTime = Date()
+    @State var canvasRedrawCount: Int = 0
+
+    // Computed property for all members
+    var members: [FamilyMember] {
+        treeData.members
+    }
+
+    // Spacing controls
+    @State var spouseSpacing: CGFloat = 180
+    @State var generalSpacing: CGFloat = 180
+
+    // Language selection
+    @State var selectedLanguage: Language = .english
+
+    // Visible members control (tracks which members should be shown in graph)
+    @State var visibleMemberIds: Set<String> = []
+    @State var renderingPriorities: [String: Double] = [:]
+
+    // Sidebar visibility
+    @State var showSidebar: Bool = true
+
+    // Connection styling
+    let connectionColor = Color.primary.opacity(0.6)
+    let highlightedConnectionColor = Color.blue
+    let circleRadius: CGFloat = 40 // Half of the 80px circle size
+
+    @Environment(\.initialDegreeOfSeparation)
+    var initialDegreeOfSeparation
+    @Environment(\.initialVisibleMemberIds)
+    var initialVisibleMemberIds
+    
+    var body: some View {
+        GeometryReader { geometry in
+            mainContent(geometry: geometry)
+        }
+    }
+
+    /// The main content view that sets up the tree visualization and various handlers.
+    @ViewBuilder
+    private func mainContent(geometry: GeometryProxy) -> some View {
+        treeVisualization(geometry: geometry)
+            .gesture(magnificationGesture)
+            .gesture(dragGesture)
+            .onAppear {
+                handleOnAppear(geometry: geometry)
+                setupKeyboardMonitoring()
+            }
+            .onDisappear {
+                teardownKeyboardMonitoring()
+            }
+            .onChange(of: members) { _ in handleMembersChange(geometry: geometry) }
+            .onChange(of: myContact) { _ in handleMyContactChange(geometry: geometry) }
+            .onChange(of: degreeOfSeparation) { _ in handleDegreeChange(geometry: geometry) }
+            .onChange(of: spouseSpacing) { _ in handleSpacingChange(geometry: geometry) }
+            .onChange(of: generalSpacing) { _ in handleSpacingChange(geometry: geometry) }
+            .onChange(of: geometry.size) { _ in handleGeometryChange(geometry: geometry) }
+            .onChange(of: visibleMemberIds) { _ in handleVisibleMembersChange(geometry: geometry) }
+    }
+
+    /// The main tree visualization including nodes, connections, controls, and overlays.
+    @ViewBuilder
+    private func treeVisualization(geometry: GeometryProxy) -> some View {
+        HStack(spacing: 0) {
+            if showSidebar {
+                sidebarView
+            }
+
+            ZStack(alignment: .topLeading) {
+                backgroundView
+                canvasView
+
+            ForEach(Array(nodePositions.enumerated()), id: \.offset) { _, nodePos in
+                // Calculate ZStack width (full window minus sidebar)
+                let sidebarWidth: CGFloat = showSidebar ? 420 : 0
+                let zStackWidth = geometry.size.width - sidebarWidth
+                // Use ZStack width for positioning since views are inside ZStack
+                let posX = nodePos.x * scale + offset.width + zStackWidth / 2
+                let posY = nodePos.y * scale + offset.height + geometry.size.height / 2
+                let isVisible = visibleNodeIds.contains(nodePos.member.id)
+
+                ContactNodeView(
+                    member: nodePos.member,
+                    isSelected: selectedMember?.id == nodePos.member.id,
+                    isHighlighted: highlightedPath.contains(nodePos.member.id),
+                    relationshipInfo: nodePos.relationshipInfo,
+                    language: selectedLanguage
+                )
+                .opacity(isVisible ? 1.0 : 0.0)
+                .scaleEffect(isVisible ? 1.0 : 0.0)
+                .position(x: posX, y: posY)
+                .onTapGesture(count: 2) {
+                    // Double-click: show popover
+                    // Clear old selection first
+                    clearHighlighting()
+                    selectedMember = nodePos.member
+                    selectedNodePosition = CGPoint(x: posX, y: posY)
+                    highlightPathToRoot(from: nodePos.member.id)
+                    showingDetail = true
+
+                    // Center on selected card
+                    centerOnNode(nodePos, in: geometry)
+                }
+                .onTapGesture(count: 1) {
+                    // Single-click: highlight path only
+                    if selectedMember?.id == nodePos.member.id {
+                        // Clicking same node - toggle off
+                        clearSelection()
+                    } else {
+                        // Select and highlight new node
+                        // Clear old selection first
+                        clearHighlighting()
+                        selectedMember = nodePos.member
+                        selectedNodePosition = CGPoint(x: posX, y: posY)
+                        highlightPathToRoot(from: nodePos.member.id)
+                        showingDetail = false  // Don't show popover on single-click
+
+                        // Center on selected card
+                        centerOnNode(nodePos, in: geometry)
+                    }
+                }
+            }
+
+            if showingDetail, let selected = selectedMember, let position = selectedNodePosition {
+                ContactPopover(
+                    member: selected,
+                    position: position
+                ) {
+                        clearSelection()
+                }
+            }
+
+            controlPanel(geometry: geometry)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func controlPanel(geometry: GeometryProxy) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Sidebar toggle
+            Toggle("Show Sidebar", isOn: $showSidebar)
+                .padding(8)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(8)
+
+            LanguageControl(selectedLanguage: $selectedLanguage)
+
+            DegreeOfSeparationControl(
+                degree: $degreeOfSeparation
+            ) {
+                // Degree change is now handled by onChange(of: degreeOfSeparation)
+                // which calls handleDegreeChange for progressive rendering
+            }
+
+            SpacingControl(
+                spouseSpacing: $spouseSpacing,
+                generalSpacing: $generalSpacing
+            )
+
+            AnimationSpeedControl(animationSpeedMs: $animationSpeedMs)
+
+            DebugControl(
+                debugMode: $debugMode,
+                currentStep: currentDebugStep,
+                totalSteps: totalDebugSteps,
+                stepDescription: debugStepDescription,
+                changesSummary: debugChangesSummary
+            )
+        }
+        .padding(16)
+    }
+
+    // MARK: - Helper Views
+    // Moved to FamilyTreeView+Handlers.swift extension
+}
+
+// MARK: - Environment Keys for Headless Rendering
+
+private struct InitialDegreeOfSeparationKey: EnvironmentKey {
+    static let defaultValue: Int? = nil
+}
+
+private struct InitialVisibleMemberIdsKey: EnvironmentKey {
+    static let defaultValue: Set<String>? = nil
+}
+
+extension EnvironmentValues {
+    var initialDegreeOfSeparation: Int? {
+        get { self[InitialDegreeOfSeparationKey.self] }
+        set { self[InitialDegreeOfSeparationKey.self] = newValue }
+    }
+
+    var initialVisibleMemberIds: Set<String>? {
+        get { self[InitialVisibleMemberIdsKey.self] }
+        set { self[InitialVisibleMemberIdsKey.self] = newValue }
+    }
+}

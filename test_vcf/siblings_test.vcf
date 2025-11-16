@@ -1,0 +1,48 @@
+BEGIN:VCARD
+VERSION:3.0
+N:SibTest;MiddleSibling;;;
+FN:MiddleSibling SibTest
+BDAY:1980-06-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:SibTest;OldestSibling;;;
+FN:OldestSibling SibTest
+BDAY:1976-01-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:SibTest;YoungestSibling;;;
+FN:YoungestSibling SibTest
+BDAY:1985-12-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:SibTest;SecondOldest;;;
+FN:SecondOldest SibTest
+BDAY:1978-03-25
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:SibTest;SecondYoungest;;;
+FN:SecondYoungest SibTest
+BDAY:1983-09-05
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;Mother;;;
+FN:Mother Parent
+BDAY:1950-05-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Parent;Father;;;
+FN:Father Parent
+BDAY:1948-08-15
+END:VCARD

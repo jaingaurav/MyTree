@@ -1,0 +1,14 @@
+# Fastlane Appfile for MyTree
+# More information about the Appfile can be found at https://docs.fastlane.tools/advanced/#appfile
+
+# App identifier (bundle ID)
+app_identifier("com.gauravjain.MyTree") # The bundle identifier of your app
+
+# Apple ID (for App Store Connect)
+# apple_id("your-apple-id@example.com") # Your Apple ID email address
+
+# Team ID (for code signing)
+# team_id("XXXXXXXXXX") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+# https://docs.fastlane.tools/advanced/#appfile

@@ -1,0 +1,38 @@
+[
+  {
+    "code": "en",
+    "displayName": "English",
+    "configFile": "en.json"
+  },
+  {
+    "code": "hi",
+    "displayName": "हिन्दी (Hindi)",
+    "configFile": "hi.json"
+  },
+  {
+    "code": "gu",
+    "displayName": "ગુજરાતી (Gujarati)",
+    "configFile": "gu.json"
+  },
+  {
+    "code": "ur",
+    "displayName": "اردو (Urdu)",
+    "configFile": "ur.json"
+  },
+  {
+    "code": "zh",
+    "displayName": "中文 (Chinese)",
+    "configFile": "zh.json"
+  },
+  {
+    "code": "es",
+    "displayName": "Español (Spanish)",
+    "configFile": "es.json"
+  },
+  {
+    "code": "fr",
+    "displayName": "Français (French)",
+    "configFile": "fr.json"
+  }
+]
+

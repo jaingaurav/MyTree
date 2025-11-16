@@ -1,0 +1,62 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Family;Root;;;
+FN:Root Family
+BDAY:1975-05-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Family;RootSpouse;;;
+FN:RootSpouse Family
+BDAY:1977-08-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Grandparent;Paternal;;;
+FN:Paternal Grandparent
+BDAY:1945-03-20
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Grandparent;PaternalSpouse;;;
+FN:PaternalSpouse Grandparent
+BDAY:1947-06-25
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Grandparent;Maternal;;;
+FN:Maternal Grandparent
+BDAY:1948-01-10
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Grandparent;MaternalSpouse;;;
+FN:MaternalSpouse Grandparent
+BDAY:1950-04-15
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Family;FirstChild;;;
+FN:FirstChild Family
+BDAY:2000-02-14
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Family;SecondChild;;;
+FN:SecondChild Family
+BDAY:2003-07-22
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+N:Family;ThirdChild;;;
+FN:ThirdChild Family
+BDAY:2006-11-30
+END:VCARD
