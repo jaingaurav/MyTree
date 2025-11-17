@@ -132,8 +132,9 @@ final class FamilyTreeViewModel: ObservableObject {
         }
     }
 
-    /// Extracts rendering priorities from layout manager's priority queue.
-    func extractRenderingPriorities(from layoutManager: ContactLayoutManager) {
+    /// Extracts rendering priorities based on degree of separation.
+    /// No longer needs layoutManager since we use stateless engine.
+    func extractRenderingPriorities() {
         var priorities: [String: Double] = [:]
 
         // Root member gets highest priority
@@ -141,15 +142,14 @@ final class FamilyTreeViewModel: ObservableObject {
             priorities[me.id] = 1000.0
         }
 
-        // Extract from priority queue
-        for item in layoutManager.priorityQueue {
-            priorities[item.member.id] = item.priority
-        }
-
-        // Add fallback priorities for members not in queue
-        for member in filteredMembers where priorities[member.id] == nil {
-            let degree = treeData.degreeOfSeparation(for: member.id)
-            priorities[member.id] = Double(1000 - degree * 100)
+        // Compute priorities based on degree (same logic as priority queue)
+        for member in filteredMembers {
+            if priorities[member.id] == nil {
+                let degree = treeData.degreeOfSeparation(for: member.id)
+                // Higher priority = lower degree, with index-based tiebreaker
+                let index = filteredMembers.firstIndex(where: { $0.id == member.id }) ?? 0
+                priorities[member.id] = Double(10000 - degree * 1000 - index)
+            }
         }
 
         renderingPriorities = priorities

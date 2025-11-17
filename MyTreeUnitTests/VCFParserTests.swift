@@ -9,6 +9,7 @@
 import XCTest
 import Contacts
 import Foundation
+@testable import MyTree
 
 final class VCFParserTests: XCTestCase {
     var parser: VCFParser?

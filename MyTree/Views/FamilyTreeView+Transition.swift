@@ -22,11 +22,9 @@ extension FamilyTreeView {
             )
         }
 
-        // Create layout manager for the destination state
-        let layoutManager = ContactLayoutManager(
-            members: viewModel.filteredMembers,
-            root: me,
-            treeData: viewModel.treeData,
+        // Use LayoutOrchestrator with stateless engine
+        let orchestrator = LayoutOrchestrator()
+        let config = LayoutConfiguration(
             baseSpacing: viewModel.layoutConfig.baseSpacing,
             spouseSpacing: viewModel.layoutConfig.spouseSpacing,
             verticalSpacing: 200,
@@ -35,7 +33,18 @@ extension FamilyTreeView {
         )
 
         // Get the final layout (not incremental, just the final state)
-        var positions = layoutManager.layoutNodes(language: viewModel.selectedLanguage)
+        let result = orchestrator.layoutTree(
+            members: viewModel.filteredMembers,
+            root: me,
+            treeData: viewModel.treeData,
+            config: config,
+            language: viewModel.selectedLanguage
+        )
+
+        guard case .success(var positions) = result else {
+            AppLog.tree.error("Failed to compute layout for transition")
+            return GraphState(nodePositions: [], visibleNodeIds: [], connections: [])
+        }
 
         // ANCHOR ROOT: If root already has a position, keep it there and shift all others
         if let existingRootPos = viewModel.nodePositions.first(where: { $0.id == me.id }) {
@@ -54,15 +63,13 @@ extension FamilyTreeView {
                 let shiftMsg = "shifted all nodes by Δx=\(Int(deltaX)), Δy=\(Int(deltaY))"
                 AppLog.tree.debug("   🔒 Anchored root at existing position, \(shiftMsg)")
 
-                // CRITICAL: After anchoring the root, we need to recalculate parent-child centering
-                // because shifting all nodes breaks the relative positioning that realignGroups() calculated.
-                // Update the layout manager's internal state and call realignGroups() again.
-                positions = layoutManager.updateStateAndRealignGroups(with: positions)
+                // Note: With stateless engine, we skip the realignment step.
+                // The positions are already aligned from the initial layout computation.
             }
         }
 
         // Extract rendering priorities
-        extractRenderingPriorities(from: layoutManager)
+        extractRenderingPriorities()
 
         // Extract connections from the positions
         let connections = GraphState.extractConnections(from: positions)

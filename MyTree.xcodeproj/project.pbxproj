@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
+		87CC6A14D2BCEEEFDBFC60F9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F32EC48B2EB36707003A2567 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F32EC4922EB36707003A2567;
+			remoteInfo = MyTree;
+		};
 		F39DF1152EBCA1D1000F4362 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F32EC48B2EB36707003A2567 /* Project object */;
@@ -144,6 +151,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				CA69DC562BAD9B2AFA98113F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F39DF1212EBCA1D2000F4362 /* MyTreeUnitTests */,
@@ -247,6 +255,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		CA69DC562BAD9B2AFA98113F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F32EC4922EB36707003A2567 /* MyTree */;
+			targetProxy = 87CC6A14D2BCEEEFDBFC60F9 /* PBXContainerItemProxy */;
+		};
 		F39DF1162EBCA1D1000F4362 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = F32EC4922EB36707003A2567 /* MyTree */;
@@ -353,6 +366,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -520,6 +534,7 @@
 		F39DF1262EBCA1D2000F4362 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -535,12 +550,14 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyTree.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyTree";
 			};
 			name = Debug;
 		};
 		F39DF1272EBCA1D2000F4362 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -556,6 +573,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyTree.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyTree";
 			};
 			name = Release;
 		};

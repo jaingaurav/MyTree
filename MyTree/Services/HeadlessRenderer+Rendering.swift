@@ -108,10 +108,8 @@ extension HeadlessRenderer {
     ) async throws {
         let filteredMembers = treeData.members.filter { visibleMemberIds.contains($0.id) }
 
-        let layoutManager = ContactLayoutManager(
-            members: filteredMembers,
-            root: rootContact,
-            treeData: treeData,
+        let orchestrator = LayoutOrchestrator()
+        let layoutConfig = LayoutConfiguration(
             baseSpacing: 180,
             spouseSpacing: 180,
             verticalSpacing: 200,
@@ -119,7 +117,15 @@ extension HeadlessRenderer {
             expansionFactor: 1.15
         )
 
-        let placementSteps = layoutManager.layoutNodesIncremental(language: .english)
+        guard case .success(let placementSteps) = orchestrator.layoutTreeIncremental(
+            members: filteredMembers,
+            root: rootContact,
+            treeData: treeData,
+            config: layoutConfig,
+            language: .english
+        ) else {
+            throw NSError(domain: "HeadlessRenderer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Layout computation failed"])
+        }
         log("Rendering \(placementSteps.count) intermediate steps...")
 
         let imageSize = CGSize(width: config.imageWidth, height: config.imageHeight)

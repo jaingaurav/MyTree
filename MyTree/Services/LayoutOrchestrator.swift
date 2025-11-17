@@ -48,21 +48,24 @@ final class LayoutOrchestrator {
             return .failure(.rootNotFound(root.id))
         }
 
-        // Create layout manager
-        let layoutManager = ContactLayoutManager(
-            members: members,
-            root: root,
-            treeData: treeData,
+        // Convert LayoutConfiguration to ContactLayoutEngine.Config
+        let engineConfig = ContactLayoutEngine.Config(
             baseSpacing: config.baseSpacing,
             spouseSpacing: config.spouseSpacing,
             verticalSpacing: config.verticalSpacing,
             minSpacing: config.minSpacing,
-            expansionFactor: config.expansionFactor,
-            siblingAgeComparator: siblingComparator
+            expansionFactor: config.expansionFactor
         )
 
-        // Perform layout
-        let positions = layoutManager.layoutNodes(language: language)
+        // Use stateless layout engine with relationship-based placement
+        let positions = ContactLayoutEngine.computeLayoutWithRelationships(
+            members: members,
+            root: root,
+            treeData: treeData,
+            config: engineConfig,
+            language: language,
+            siblingComparator: siblingComparator
+        )
 
         return .success(positions)
     }
@@ -91,21 +94,24 @@ final class LayoutOrchestrator {
             return .failure(.rootNotFound(root.id))
         }
 
-        // Create layout manager
-        let layoutManager = ContactLayoutManager(
-            members: members,
-            root: root,
-            treeData: treeData,
+        // Convert LayoutConfiguration to ContactLayoutEngine.Config
+        let engineConfig = ContactLayoutEngine.Config(
             baseSpacing: config.baseSpacing,
             spouseSpacing: config.spouseSpacing,
             verticalSpacing: config.verticalSpacing,
             minSpacing: config.minSpacing,
-            expansionFactor: config.expansionFactor,
-            siblingAgeComparator: siblingComparator
+            expansionFactor: config.expansionFactor
         )
 
-        // Perform incremental layout
-        let steps = layoutManager.layoutNodesIncremental(language: language)
+        // Use stateless layout engine for incremental layout
+        let steps = ContactLayoutEngine.computeLayoutIncremental(
+            members: members,
+            root: root,
+            treeData: treeData,
+            config: engineConfig,
+            language: language,
+            siblingComparator: siblingComparator
+        )
 
         return .success(steps)
     }

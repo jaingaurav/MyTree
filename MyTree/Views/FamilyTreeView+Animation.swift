@@ -136,7 +136,6 @@ extension FamilyTreeView {
 
     func animateIncrementalPlacement(
         placementSteps: [[NodePosition]],
-        layoutManager: ContactLayoutManager,
         geometry: GeometryProxy
     ) {
         guard let initialNodes = placementSteps.first else { return }
@@ -156,7 +155,6 @@ extension FamilyTreeView {
     func animateIncrementalPlacementForNewMembers(
         placementSteps: [[NodePosition]],
         newMemberIds: Set<String>,
-        layoutManager: ContactLayoutManager,
         geometry: GeometryProxy
     ) {
         guard let initialNodes = placementSteps.first else { return }
@@ -646,7 +644,6 @@ extension FamilyTreeView {
     // MARK: - Layout Recompute Helpers
 
     func recomputeLayoutForVisibleMembers(
-        layoutManager: ContactLayoutManager?,
         geometry: GeometryProxy,
         newlyVisibleIds: Set<String>
     ) {
@@ -673,10 +670,8 @@ extension FamilyTreeView {
             return
         }
 
-        let layoutManager = layoutManager ?? ContactLayoutManager(
-            members: viewModel.filteredMembers,
-            root: rootFromFiltered,
-            treeData: viewModel.treeData,
+        let orchestrator = LayoutOrchestrator()
+        let config = LayoutConfiguration(
             baseSpacing: viewModel.layoutConfig.baseSpacing,
             spouseSpacing: viewModel.layoutConfig.spouseSpacing,
             verticalSpacing: 200,
@@ -685,7 +680,16 @@ extension FamilyTreeView {
         )
 
         AppLog.tree.debug("      🎯 Running layoutNodesIncremental...")
-        let steps = layoutManager.layoutNodesIncremental(language: viewModel.selectedLanguage)
+        guard case .success(let steps) = orchestrator.layoutTreeIncremental(
+            members: viewModel.filteredMembers,
+            root: rootFromFiltered,
+            treeData: viewModel.treeData,
+            config: config,
+            language: viewModel.selectedLanguage
+        ) else {
+            AppLog.tree.error("      ⚠️ Failed to recompute layout")
+            return
+        }
         AppLog.tree.debug("      📋 Got \(steps.count) steps from recomputation")
 
         guard let lastStep = steps.last else {

@@ -213,11 +213,9 @@ struct HeadlessTreeViewContent: View {
         let filteredMembers = treeData.members.filter { visibleMemberIds.contains($0.id) }
         AppLog.headless.info("[HeadlessRender] Filtered to \(filteredMembers.count) members")
 
-        // Create layout manager
-        let layoutManager = ContactLayoutManager(
-            members: filteredMembers,
-            root: rootContact,
-            treeData: treeData,
+        // Use LayoutOrchestrator with stateless engine
+        let orchestrator = LayoutOrchestrator()
+        let layoutConfig = LayoutConfiguration(
             baseSpacing: 180,
             spouseSpacing: 180,
             verticalSpacing: 200,
@@ -226,7 +224,18 @@ struct HeadlessTreeViewContent: View {
         )
 
         // Compute incremental placement steps
-        placementSteps = layoutManager.layoutNodesIncremental(language: .english)
+        if case .success(let steps) = orchestrator.layoutTreeIncremental(
+            members: filteredMembers,
+            root: rootContact,
+            treeData: treeData,
+            config: layoutConfig,
+            language: .english
+        ) {
+            placementSteps = steps
+        } else {
+            placementSteps = []
+            AppLog.headless.error("[HeadlessRender] Failed to compute incremental layout")
+        }
         AppLog.headless.info("[HeadlessRender] Computed \(placementSteps.count) placement steps")
 
         // Log each step
